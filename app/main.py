@@ -1,5 +1,6 @@
 from fastapi import FastAPI, HTTPException
 
+from app.domain.exceptions import DomainError
 from app.domain.models import Order
 from app.repositories.in_memory import InMemoryOrderRepository, InMemoryPaymentRepository, InMemoryProductRepository
 from app.schemas import (
@@ -15,6 +16,7 @@ from app.services.order_factory import OrderFactory
 from app.services.order_service import OrderService
 from app.services.payment_factory import PaymentStrategyFactory
 from app.services.payment_service import PaymentService
+from app.services.product_service import ProductService
 from app.domain.events import EventDispatcher
 
 app = FastAPI(title="Order Payment API", version="1.0.0")
@@ -32,6 +34,7 @@ order_service = OrderService(
     order_repository=order_repository,
     order_factory=OrderFactory(),
 )
+product_service = ProductService(product_repository=product_repository)
 payment_service = PaymentService(
     order_repository=order_repository,
     payment_repository=payment_repository,
@@ -60,7 +63,7 @@ def _to_order_response(order: Order) -> OrderResponse:
 
 @app.get("/products", response_model=list[ProductResponse])
 def list_products() -> list[ProductResponse]:
-    return [ProductResponse(id=p.id, name=p.name, price=p.price) for p in order_service.list_products()]
+    return [ProductResponse(id=p.id, name=p.name, price=p.price) for p in product_service.list_products()]
 
 
 @app.post("/orders", response_model=OrderResponse, status_code=201)
@@ -70,8 +73,8 @@ def create_order(payload: CreateOrderRequest) -> OrderResponse:
             customer_id=payload.customer_id,
             items=[{"product_id": i.product_id, "quantity": i.quantity} for i in payload.items],
         )
-    except ValueError as error:
-        raise HTTPException(status_code=400, detail=str(error)) from error
+    except DomainError as error:
+        raise HTTPException(status_code=error.status_code, detail=error.message) from error
     return _to_order_response(order)
 
 
@@ -79,8 +82,8 @@ def create_order(payload: CreateOrderRequest) -> OrderResponse:
 def get_order(order_id: str) -> OrderResponse:
     try:
         order = order_service.get_order(order_id)
-    except ValueError as error:
-        raise HTTPException(status_code=404, detail=str(error)) from error
+    except DomainError as error:
+        raise HTTPException(status_code=error.status_code, detail=error.message) from error
     return _to_order_response(order)
 
 
@@ -88,10 +91,8 @@ def get_order(order_id: str) -> OrderResponse:
 def process_order_payment(order_id: str, payload: PaymentRequest) -> PaymentResponse:
     try:
         payment, message = payment_service.process_payment(order_id=order_id, method=payload.method, details=payload.details)
-    except ValueError as error:
-        detail = str(error)
-        status_code = 404 if detail == "Order not found" else 400
-        raise HTTPException(status_code=status_code, detail=detail) from error
+    except DomainError as error:
+        raise HTTPException(status_code=error.status_code, detail=error.message) from error
 
     return PaymentResponse(
         id=payment.id,

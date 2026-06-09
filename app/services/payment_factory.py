@@ -1,3 +1,4 @@
+from app.domain.exceptions import ValidationError
 from app.services.payment_strategies import CardPaymentStrategy, CashPaymentStrategy, PaymentStrategy
 
 
@@ -8,4 +9,4 @@ class PaymentStrategyFactory:
             return CardPaymentStrategy()
         if normalized == "cash":
             return CashPaymentStrategy()
-        raise ValueError(f"Unsupported payment method: {method}")
+        raise ValidationError(f"Unsupported payment method: {method}. Supported methods: card, cash")

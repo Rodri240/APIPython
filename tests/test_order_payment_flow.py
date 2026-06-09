@@ -1,5 +1,6 @@
 import unittest
 
+from app.domain.exceptions import ValidationError, NotFoundError
 from app.domain.events import EventDispatcher
 from app.repositories.in_memory import InMemoryOrderRepository, InMemoryPaymentRepository, InMemoryProductRepository
 from app.services.notification import CustomerNotificationService
@@ -53,8 +54,13 @@ class OrderPaymentFlowTestCase(unittest.TestCase):
         self.assertEqual(len(self.notification_service.notifications), 1)
 
     def test_create_order_with_unknown_product_fails(self) -> None:
-        with self.assertRaises(ValueError):
+        with self.assertRaisesRegex(NotFoundError, "Product not found: P999"):
             self.order_service.create_order(customer_id="C001", items=[{"product_id": "P999", "quantity": 1}])
+
+    def test_payment_with_unsupported_method_fails(self) -> None:
+        order = self.order_service.create_order(customer_id="C001", items=[{"product_id": "P001", "quantity": 1}])
+        with self.assertRaisesRegex(ValidationError, "Supported methods: card, cash"):
+            self.payment_service.process_payment(order_id=order.id, method="bitcoin", details={})
 
 
 if __name__ == "__main__":

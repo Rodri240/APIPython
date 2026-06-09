@@ -1,6 +1,8 @@
 from uuid import uuid4
+from typing import Mapping
 
 from app.domain.events import EventDispatcher, OrderPaidEvent
+from app.domain.exceptions import ConflictError, NotFoundError
 from app.domain.models import OrderStatus, Payment, PaymentStatus
 from app.repositories.interfaces import OrderRepository, PaymentRepository
 from app.services.payment_factory import PaymentStrategyFactory
@@ -19,12 +21,12 @@ class PaymentService:
         self._payment_factory = payment_factory
         self._event_dispatcher = event_dispatcher
 
-    def process_payment(self, order_id: str, method: str, details: dict) -> tuple[Payment, str]:
+    def process_payment(self, order_id: str, method: str, details: Mapping[str, object]) -> tuple[Payment, str]:
         order = self._order_repository.get_by_id(order_id)
         if order is None:
-            raise ValueError("Order not found")
+            raise NotFoundError("Order not found")
         if order.status == OrderStatus.PAID:
-            raise ValueError("Order already paid")
+            raise ConflictError("Order already paid")
 
         strategy = self._payment_factory.create(method)
         result = strategy.process(order.total, details)

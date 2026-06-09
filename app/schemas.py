@@ -34,7 +34,7 @@ class OrderResponse(BaseModel):
 
 class PaymentRequest(BaseModel):
     method: str = Field(min_length=1)
-    details: dict = Field(default_factory=dict)
+    details: dict[str, str] = Field(default_factory=dict)
 
 
 class PaymentResponse(BaseModel):
