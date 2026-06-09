@@ -1,0 +1,37 @@
+from uuid import uuid4
+
+from app.domain.models import Order, Product
+from app.repositories.interfaces import OrderRepository, ProductRepository
+from app.services.order_factory import OrderFactory
+
+
+class OrderService:
+    def __init__(
+        self,
+        product_repository: ProductRepository,
+        order_repository: OrderRepository,
+        order_factory: OrderFactory,
+    ) -> None:
+        self._product_repository = product_repository
+        self._order_repository = order_repository
+        self._order_factory = order_factory
+
+    def list_products(self) -> list[Product]:
+        return self._product_repository.list_all()
+
+    def create_order(self, customer_id: str, items: list[dict]) -> Order:
+        product_ids = {item["product_id"] for item in items}
+        products = {product_id: self._product_repository.get_by_id(product_id) for product_id in product_ids}
+        order = self._order_factory.create(
+            order_id=str(uuid4()),
+            customer_id=customer_id,
+            requested_items=items,
+            products={k: v for k, v in products.items() if v is not None},
+        )
+        return self._order_repository.save(order)
+
+    def get_order(self, order_id: str) -> Order:
+        order = self._order_repository.get_by_id(order_id)
+        if order is None:
+            raise ValueError("Order not found")
+        return order
